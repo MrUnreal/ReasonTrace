@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ReasonTrace — Chain-of-Thought Reasoning Visualizer</title>
+    <meta name="description" content="Paste an AI's reasoning trace and get an interactive thinking tree. Visualize how o3, R1, and Claude think step by step.">
+    <meta name="keywords" content="chain of thought visualizer, reasoning trace viewer, o3 thinking, AI reasoning, CoT visualization">
+    <meta property="og:title" content="ReasonTrace — See How AI Thinks">
+    <meta property="og:description" content="Paste an AI reasoning trace → get an interactive thinking tree. Visualize reasoning, backtracking, and self-correction.">
+    <meta property="og:type" content="website">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <h1>🧠 ReasonTrace</h1>
+        <p class="subtitle">Chain-of-Thought Reasoning Visualizer</p>
+        <p class="subtitle-detail">Paste an AI's reasoning trace → get an interactive thinking tree</p>
+    </header>
+
+    <!-- Input Section -->
+    <section class="input-section">
+        <div class="input-header">
+            <h2>Paste a Reasoning Trace</h2>
+            <div class="example-buttons" id="example-buttons"></div>
+        </div>
+        <div class="textarea-wrapper">
+            <textarea id="trace-input" placeholder="Paste an AI reasoning trace here...&#10;&#10;Works with output from o3, Claude, DeepSeek R1, or any chain-of-thought model.&#10;&#10;Or click an example above to get started."></textarea>
+            <div class="input-actions">
+                <button id="btn-visualize" class="btn-primary">🌳 Visualize Trace</button>
+                <button id="btn-clear" class="btn-secondary">Clear</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Stats Bar -->
+    <section class="stats-bar hidden" id="stats-bar">
+        <div class="stat-item">
+            <span class="stat-value" id="stat-steps">0</span>
+            <span class="stat-label">Steps</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-value" id="stat-depth">0</span>
+            <span class="stat-label">Max Depth</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-value" id="stat-backtracks">0</span>
+            <span class="stat-label">Backtracks</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-value" id="stat-corrections">0</span>
+            <span class="stat-label">Corrections</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-value" id="stat-conclusions">0</span>
+            <span class="stat-label">Conclusions</span>
+        </div>
+    </section>
+
+    <!-- Legend -->
+    <section class="legend hidden" id="legend">
+        <span class="legend-item"><span class="legend-dot reasoning"></span> Reasoning</span>
+        <span class="legend-item"><span class="legend-dot exploration"></span> Exploration</span>
+        <span class="legend-item"><span class="legend-dot backtrack"></span> Backtrack</span>
+        <span class="legend-item"><span class="legend-dot correction"></span> Correction</span>
+        <span class="legend-item"><span class="legend-dot conclusion"></span> Conclusion</span>
+        <span class="legend-item"><span class="legend-dot verification"></span> Verification</span>
+    </section>
+
+    <!-- Visualization -->
+    <section class="viz-section hidden" id="viz-section">
+        <div class="viz-controls">
+            <button id="btn-zoom-in" class="btn-icon" title="Zoom In">+</button>
+            <button id="btn-zoom-out" class="btn-icon" title="Zoom Out">−</button>
+            <button id="btn-reset" class="btn-icon" title="Reset View">⟳</button>
+            <button id="btn-expand-all" class="btn-icon" title="Expand All">⊞</button>
+            <button id="btn-collapse-all" class="btn-icon" title="Collapse All">⊟</button>
+        </div>
+        <div class="viz-container" id="viz-container">
+            <svg id="tree-svg"></svg>
+        </div>
+    </section>
+
+    <!-- Node Detail Panel -->
+    <div class="detail-panel hidden" id="detail-panel">
+        <div class="detail-header">
+            <span class="detail-type" id="detail-type"></span>
+            <button class="detail-close" id="detail-close">×</button>
+        </div>
+        <div class="detail-content" id="detail-content"></div>
+    </div>
+
+    <footer>
+        <p>Works with reasoning traces from o3, o4-mini, DeepSeek R1, Claude, and more</p>
+        <p class="footer-note">Built with D3.js · Part of the AI Ecosystem Tools portfolio</p>
+    </footer>
+
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
