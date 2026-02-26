@@ -138,19 +138,32 @@
         const paragraphs = [];
         let currentParagraph = [];
 
-        // Group lines into paragraphs
-        for (const line of lines) {
-            if (line.trim() === '') {
-                if (currentParagraph.length > 0) {
-                    paragraphs.push(currentParagraph.join('\n').trim());
-                    currentParagraph = [];
+        // Check if the text uses blank-line separators (paragraph mode)
+        const hasBlankLines = lines.some(line => line.trim() === '');
+
+        if (hasBlankLines) {
+            // Group lines into paragraphs (separated by blank lines)
+            for (const line of lines) {
+                if (line.trim() === '') {
+                    if (currentParagraph.length > 0) {
+                        paragraphs.push(currentParagraph.join('\n').trim());
+                        currentParagraph = [];
+                    }
+                } else {
+                    currentParagraph.push(line);
                 }
-            } else {
-                currentParagraph.push(line);
             }
-        }
-        if (currentParagraph.length > 0) {
-            paragraphs.push(currentParagraph.join('\n').trim());
+            if (currentParagraph.length > 0) {
+                paragraphs.push(currentParagraph.join('\n').trim());
+            }
+        } else {
+            // No blank lines — treat each non-empty line as a separate step
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (trimmed) {
+                    paragraphs.push(trimmed);
+                }
+            }
         }
 
         if (paragraphs.length === 0) return null;
