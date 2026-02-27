@@ -194,6 +194,13 @@ textarea::placeholder {
     color: var(--text);
 }
 
+.keyboard-hint {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    align-self: center;
+    margin-left: 4px;
+}
+
 /* Stats Bar */
 .stats-bar {
     max-width: 900px;
@@ -314,7 +321,7 @@ textarea::placeholder {
 
 #tree-svg {
     width: 100%;
-    height: 600px;
+    min-height: 500px;
 }
 
 /* Tree nodes */
@@ -483,7 +490,7 @@ footer p {
     .stat-value { font-size: 1.3rem; }
     .detail-panel { width: calc(100% - 24px); left: 12px; right: 12px; }
     .legend { gap: 12px; }
-    #tree-svg { height: 450px; }
+    #tree-svg { min-height: 400px; }
 }
 
 @media (max-width: 480px) {
