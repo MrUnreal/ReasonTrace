@@ -175,10 +175,10 @@
             summary: summarize(paragraphs[0]),
             ...classifyNode(paragraphs[0]),
             children: [],
-            depth: 0
+            depth: 0,
+            _collapsed: false
         };
 
-        let currentParent = root;
         let previousNode = root;
         let nodeId = 1;
         let stack = [root]; // Track parent stack for depth management
@@ -193,7 +193,8 @@
                 summary: summarize(para),
                 ...classification,
                 children: [],
-                depth: 0
+                depth: 0,
+                _collapsed: false
             };
 
             // Determine parent based on node type and context
@@ -230,10 +231,11 @@
                 stack.push(node);
             } else {
                 // Regular reasoning continues the current branch
+                // Replace top of stack instead of unbounded push to prevent linear chain depth explosion
                 const parent = stack[stack.length - 1];
                 parent.children.push(node);
                 node.depth = parent.depth + 1;
-                stack.push(node);
+                stack[stack.length - 1] = node;
             }
 
             previousNode = node;
@@ -271,6 +273,7 @@
     // ─── D3 Visualization ───
     let svg, g, zoom, treeLayout;
     let currentRoot = null;
+    let currentTransform = null;
 
     const colorMap = {
         reasoning: '#6366f1',
@@ -281,18 +284,65 @@
         verification: '#06b6d4',
     };
 
+    // Collapse helper: filter out collapsed subtrees for display
+    function getVisibleRoot(node) {
+        const copy = { ...node, children: [] };
+        if (!node._collapsed && node.children) {
+            copy.children = node.children.map(c => getVisibleRoot(c));
+        }
+        return copy;
+    }
+
+    function toggleCollapse(d) {
+        const node = d.data._source;
+        if (node && node.children && node.children.length > 0) {
+            node._collapsed = !node._collapsed;
+            renderTree(currentRoot);
+        }
+    }
+
+    function setCollapseAll(node, collapsed) {
+        node._collapsed = collapsed;
+        if (node.children) {
+            node.children.forEach(c => setCollapseAll(c, collapsed));
+        }
+    }
+
     function renderTree(root) {
         currentRoot = root;
         const svgEl = document.getElementById('tree-svg');
         const width = vizContainer.clientWidth;
-        const height = 600;
+
+        // Build visible tree (respecting collapsed state)
+        const visibleRoot = getVisibleRoot(root);
+        // Attach source reference for toggle
+        function attachSource(visible, original) {
+            visible._source = original;
+            if (visible.children && original.children && !original._collapsed) {
+                for (let i = 0; i < visible.children.length; i++) {
+                    attachSource(visible.children[i], original.children[i]);
+                }
+            }
+        }
+        attachSource(visibleRoot, root);
+
+        // Create hierarchy
+        const hierarchy = d3.hierarchy(visibleRoot);
+
+        // Count all nodes to determine layout
+        const totalNodes = hierarchy.descendants().length;
+        const treeWidth = Math.max(width - 100, totalNodes * 40);
+        const treeHeight = Math.max(400, hierarchy.height * 140);
+
+        // Dynamic SVG height based on tree depth
+        const svgHeight = Math.max(500, treeHeight + 120);
+        d3.select(svgEl).attr('height', svgHeight);
 
         // Clear previous
         d3.select(svgEl).selectAll('*').remove();
 
         svg = d3.select(svgEl)
-            .attr('width', width)
-            .attr('height', height);
+            .attr('width', width);
 
         g = svg.append('g');
 
@@ -300,18 +350,11 @@
         zoom = d3.zoom()
             .scaleExtent([0.1, 4])
             .on('zoom', (event) => {
+                currentTransform = event.transform;
                 g.attr('transform', event.transform);
             });
 
         svg.call(zoom);
-
-        // Create hierarchy
-        const hierarchy = d3.hierarchy(root);
-
-        // Count all nodes to determine layout
-        const totalNodes = hierarchy.descendants().length;
-        const treeWidth = Math.max(width - 100, totalNodes * 40);
-        const treeHeight = Math.max(height - 80, hierarchy.height * 140);
 
         // Tree layout — top to bottom
         treeLayout = d3.tree()
@@ -322,15 +365,18 @@
 
         treeLayout(hierarchy);
 
-        // Center the tree
-        const initialTransform = d3.zoomIdentity
-            .translate(width / 2 - treeWidth / 2, 40)
-            .scale(Math.min(1, width / (treeWidth + 100)));
-
-        svg.call(zoom.transform, initialTransform);
+        // Restore or calculate initial transform
+        if (currentTransform) {
+            svg.call(zoom.transform, currentTransform);
+        } else {
+            const initialTransform = d3.zoomIdentity
+                .translate(width / 2 - treeWidth / 2, 40)
+                .scale(Math.min(1, width / (treeWidth + 100)));
+            svg.call(zoom.transform, initialTransform);
+        }
 
         // Draw links
-        const links = g.selectAll('.link-path')
+        g.selectAll('.link-path')
             .data(hierarchy.links())
             .enter()
             .append('path')
@@ -349,7 +395,20 @@
             .attr('transform', d => `translate(${d.x},${d.y})`)
             .on('click', (event, d) => {
                 event.stopPropagation();
-                showDetail(d.data);
+                if (event.shiftKey || (d.data._source && d.data._source.children && d.data._source.children.length > 0)) {
+                    // Shift+click or click on parent: toggle collapse
+                    if (d.data._source && d.data._source.children && d.data._source.children.length > 0) {
+                        toggleCollapse(d);
+                    } else {
+                        showDetail(d.data);
+                    }
+                } else {
+                    showDetail(d.data);
+                }
+            })
+            .on('dblclick', (event, d) => {
+                event.stopPropagation();
+                toggleCollapse(d);
             });
 
         // Node circles
@@ -358,7 +417,11 @@
             .attr('r', d => d.depth === 0 ? 14 : (d.children ? 10 : 8))
             .attr('fill', d => colorMap[d.data.type] || '#6e6e8e')
             .attr('stroke', d => colorMap[d.data.type] || '#6e6e8e')
-            .attr('fill-opacity', 0.2)
+            .attr('fill-opacity', d => {
+                // Filled circle for collapsed nodes with hidden children
+                const src = d.data._source;
+                return (src && src._collapsed && src.children && src.children.length > 0) ? 0.6 : 0.2;
+            })
             .attr('stroke-opacity', 0.8);
 
         // Type icon in node
@@ -379,13 +442,13 @@
                 return icons[d.data.type] || '·';
             });
 
-        // Node labels
+        // Node labels — increased from 35 to 50 chars
         nodes.append('text')
             .attr('class', 'node-label')
             .attr('dy', d => d.depth === 0 ? -22 : -16)
             .attr('text-anchor', 'middle')
             .text(d => {
-                const maxLen = 35;
+                const maxLen = 50;
                 const s = d.data.summary;
                 return s.length > maxLen ? s.substring(0, maxLen - 2) + '…' : s;
             })
@@ -401,15 +464,23 @@
             .style('fill', d => colorMap[d.data.type] || '#6e6e8e')
             .style('opacity', 0.6);
 
-        // Children count indicator
-        nodes.filter(d => d.data.children && d.data.children.length > 0)
+        // Children count / collapsed indicator
+        nodes.filter(d => {
+            const src = d.data._source;
+            return src && src.children && src.children.length > 0;
+        })
             .append('text')
             .attr('class', 'collapse-indicator')
             .attr('dx', d => d.depth === 0 ? 18 : 14)
             .attr('dy', '0.35em')
-            .text(d => d.data.children.length > 0 ? `(${d.data.children.length})` : '')
-            .style('fill', '#4a4a6a')
-            .style('font-size', '8px');
+            .text(d => {
+                const src = d.data._source;
+                if (src._collapsed) return `[+${src.children.length}]`;
+                return `(${src.children.length})`;
+            })
+            .style('fill', d => d.data._source._collapsed ? '#a78bfa' : '#4a4a6a')
+            .style('font-size', '8px')
+            .style('cursor', 'pointer');
     }
 
     // ─── Detail Panel ───
@@ -441,15 +512,35 @@
     });
 
     btnReset.addEventListener('click', () => {
-        if (currentRoot) renderTree(currentRoot);
+        if (svg && zoom) {
+            currentTransform = null;
+            const svgEl = document.getElementById('tree-svg');
+            const width = vizContainer.clientWidth;
+            const hierarchy = d3.hierarchy(getVisibleRoot(currentRoot));
+            const totalNodes = hierarchy.descendants().length;
+            const treeWidth = Math.max(width - 100, totalNodes * 40);
+            const resetTransform = d3.zoomIdentity
+                .translate(width / 2 - treeWidth / 2, 40)
+                .scale(Math.min(1, width / (treeWidth + 100)));
+            svg.transition().duration(500).call(zoom.transform, resetTransform);
+        }
     });
 
     btnExpandAll.addEventListener('click', () => {
-        if (currentRoot) renderTree(currentRoot);
+        if (currentRoot) {
+            setCollapseAll(currentRoot, false);
+            renderTree(currentRoot);
+        }
     });
 
     btnCollapseAll.addEventListener('click', () => {
-        if (currentRoot) renderTree(currentRoot);
+        if (currentRoot) {
+            // Collapse all except root
+            if (currentRoot.children) {
+                currentRoot.children.forEach(c => setCollapseAll(c, true));
+            }
+            renderTree(currentRoot);
+        }
     });
 
     // ─── Main Visualize Function ───
@@ -459,6 +550,9 @@
 
         const root = parseTrace(text);
         if (!root) return;
+
+        // Reset zoom transform for fresh visualization
+        currentTransform = null;
 
         // Update stats
         const stats = calculateStats(root);
